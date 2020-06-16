@@ -30,55 +30,20 @@ dados = read_csv(here::here("data/satisfacoes.csv"),
 glimpse(dados)
 ```
 
-
-```{r}
-
-dados %>% group_by(scenario) %>% count()
-
-shapiro.test(dados$satisfaction)
-
-```
-
-Segundo os autores, como a amostra possui menos de 30 elementos por tipo de cenário e os dados de satisfação não estão normalizados, segundo teste de Shapiro-Wilk, foi preferível realizar as análises com base em dados não paramétricos, justificando a decisão de calcular o intervalo de confiança de acordo com a mediana. 
-
-
-```{r}
-
-
-nAmostras = 23
-alpha = 0.05
-clevel = 1-(alpha/2)
-
-icRange = qnorm(clevel)
-
-lowerIC = (nAmostras/2) - (icRange*sqrt(nAmostras))/2
-
-lowerIC
-
-upperIC = 1 + (nAmostras/2) + ((icRange*sqrt(nAmostras))/2)
-
-upperIC
-    
-```
-Considerando a mediana, temos que, para um intervalo de confiança de 95%, o limite inferior e superior serão o 7º e 17º elementos de cada cenário.
+Analisando a distribuição da variável satisfação para cada método, temos:
 
 ```{r}
 
 dados = dados %>% arrange(scenario,satisfaction)
 
-limites = dados %>% group_by(scenario) %>% summarize(CI_L = satisfaction[7],
-                                            CI_U = satisfaction[17])
 
 ggplot() + 
     geom_violin(data = dados, mapping = aes(x=scenario,y=satisfaction),alpha = 1,colour = "gray")+
-    geom_jitter(data = dados,mapping = aes(colour= scenario, x=scenario,y=satisfaction),alpha = 0.5,size = 2,height = 0.05, width = 0.1, show.legend = FALSE)+
-    geom_errorbar(data = limites, mapping = aes(x = scenario, ymin = CI_L, ymax = CI_U), 
-                 width = 0.2)
-
+    geom_jitter(data = dados,mapping = aes(colour= scenario, x=scenario,y=satisfaction),alpha = 0.5,size = 2,height = 0.05, width = 0.1, show.legend = FALSE)
 
 ```
 
-O gráfico acima apresenta a distribuição das medições de satisfação para os 5 cenários avaliados, destacando um intervalor de confiança de 95% para a Mediana, seguindo o exemplo do artigo. A partid do gráfico podemos notar que os métodos up/downvoting, like/dislike e combined apresentam uma satisfação maior que o baseline. Para confirmar está observação vamos aplicar o teste de Mann-Whitney, com significância de 0.05, para comprovar que existe uma diferença significante.  
+A partid do gráfico podemos notar que os métodos up/downvoting, like/dislike e combined apresentam uma satisfação maior que o baseline. Para confirmar está observação vamos aplicar o teste de Mann-Whitney, com significância de 0.05, para comprovar que existe uma diferença significante.  
 
 
 1. Baseline x (Like/dislike, up/downvoting, combined)
@@ -105,14 +70,15 @@ dif(comparacao2)
 dif(comparacao3)
 ```
 
-Como as 3 comparações apresentaram p-valor <0,05 podemos rejeitar a hipótese nula, confirmando que os valores de satisfação das amostras like/dislike, up/downvoting/combined são diferentes do baseline.
+Como as 3 comparações apresentaram p-valor <0.05 podemos rejeitar a hipótese nula, confirmando que os valores de satisfação das amostras like/dislike, up/downvoting/combined são diferentes do baseline.
 
 
-Além disso, com base na visualização da distribuição dos 5 cenários, podemos perceber que o método up/downvoting, além de um alto nível de satisfação, ainda apresentou uma dispersão menor e uma mediana maior que os outros métodos. Aplicando a técnica de bootstrapping na média dos métodos up/downvoting, combined e like/dislike separadamente, temos: 
+Além disso, com base na visualização da distribuição dos 5 cenários, podemos perceber que o método up/downvoting, além de um alto nível de satisfação, ainda apresentou uma dispersão menor que os outros métodos. Aplicando a técnica de bootstrapping na média dos métodos up/downvoting, combined e like/dislike separadamente, temos: 
 
 2. Up/downvoting
 
 ```{r}
+set.seed(12345)
 
 theta = function(d,i) {
   mean(d %>% slice(i) %>% pull(satisfaction)) 
@@ -129,11 +95,13 @@ ciupdown = boot(data = updown,
          conf.int = TRUE)
 
 ciupdown = ciupdown %>% mutate(metodo = "up/downvoting")
+
 ```
 
 3. Like/dislike
 
 ```{r}
+set.seed(12345)
 
 likedis = dados %>% 
     filter(scenario == "like/dislike")
@@ -151,6 +119,7 @@ cilikedis = cilikedis %>% mutate(metodo = "like/dislike")
 4. Combined
 
 ```{r}
+set.seed(12345)
 combined = dados %>% 
     filter(scenario == "combined")
 
@@ -169,16 +138,27 @@ cicombined = cicombined %>% mutate(metodo = "combined")
 dfCompara = rbind(ciupdown, cicombined, cilikedis)
 dfCompara
 
-dfCompara %>% ggplot(aes(
-        x = metodo,
-        y = statistic,
-        ymin = conf.low,
-        ymax = conf.high
-    )) +
-    geom_pointrange(size = 1.2) +
-    geom_point(size = 3) + 
-    labs(x = "Nível de Satisfação x Método de Gerenciamento", 
-         y = "")
+df3best = dados %>% filter(scenario %in% c("up/downvoting", "like/dislike","combined"))
+
+#dfCompara %>% ggplot(aes(
+#        x = metodo,
+#        y = statistic,
+#        ymin = conf.low,
+#        ymax = conf.high
+ #   )) +
+ #   geom_pointrange(size = 1.2) +
+ #   geom_point(size = 3) + 
+ #   labs(x = "Nível de Satisfação x Método de Gerenciamento", 
+ #        y = "")
+
+ggplot() + 
+    geom_violin(data = df3best, mapping = aes(x=scenario,y=satisfaction),colour = "gray")+
+    geom_jitter(data = df3best,mapping = aes(colour= scenario, x=scenario,y=satisfaction),alpha = 0.8,size = 2,height = 0.05, width = 0.1, show.legend = FALSE)+
+    geom_errorbar(data = dfCompara, mapping = aes( x = metodo,y = statistic,ymin = conf.low,ymax = conf.high),width = 0.2)+ 
+    geom_point(data = dfCompara,size = 1.5,aes( x = metodo,y = statistic) ) 
+   
 ```
 
-Sendo assim, com base nas visualizações geradas, podemos concluir que o método Up/downvoting apresentou um nível de satisfação maior que os outros métodos. Considerando um nível de confiança de 95%, o método Up/downvoting alcançou uma satisfação entre [4.2,4.5], enquanto que o segundo método mais relevante, o Combined, ficou entre [3.8,4.2]
+Sendo assim, com base nas visualizações geradas, podemos concluir que o método Up/downvoting apresentou um nível de satisfação maior que os outros métodos, considerando um nível de confiança de 95%.
+
+## Teste de hipótese para diferença entre médias
