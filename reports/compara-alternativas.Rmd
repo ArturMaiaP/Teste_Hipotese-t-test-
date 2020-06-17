@@ -159,7 +159,7 @@ ggplot() +
    
 ```
 
-Sendo assim, com base nas visualizações geradas, podemos concluir que o método Up/downvoting apresentou um nível de satisfação maior que os outros métodos, considerando um nível de confiança de 95%.
+Sendo assim, com base nas visualizações geradas, podemos perceber uma vantagem na satisfação do método Up/downvoting em relação aos outros métodos, considerando um intervalo de confiança de 95%.
 
 ## Teste-t para diferença entre médias
 
