@@ -70,7 +70,7 @@ dif(comparacao2)
 dif(comparacao3)
 ```
 
-Como as 3 comparações apresentaram p-valor <0.05 podemos rejeitar a hipótese nula, confirmando que os valores de satisfação das amostras like/dislike, up/downvoting/combined são diferentes do baseline.
+Como as 3 comparações apresentaram p-valor < 0.05 podemos rejeitar a hipótese nula, confirmando que os valores de satisfação das amostras like/dislike, up/downvoting/combined são diferentes do baseline.
 
 
 Além disso, com base na visualização da distribuição dos 5 cenários, podemos perceber que o método up/downvoting, além de um alto nível de satisfação, ainda apresentou uma dispersão menor que os outros métodos. Aplicando a técnica de bootstrapping na média dos métodos up/downvoting, combined e like/dislike separadamente, temos: 
@@ -161,4 +161,34 @@ ggplot() +
 
 Sendo assim, com base nas visualizações geradas, podemos concluir que o método Up/downvoting apresentou um nível de satisfação maior que os outros métodos, considerando um nível de confiança de 95%.
 
-## Teste de hipótese para diferença entre médias
+## Teste-t para diferença entre médias
+
+Usando o teste-t para saber se a média de satisfação do método up/downvoting é maior que os métodos combined e like/dislike, podemos formular as seguintes hipóteses:
+
+H0: MediaUpDown - MediaMetodo = 0
+H1: MediaUpDown - MediaMetodo > 0
+
+Onde MediaMetodo corresponder a média do método combined ou like/dislike. Com base num nível de significancia de 0.05, temos:
+
+```{r}
+conf = 0.05
+TupDown = dados %>% filter( scenario == "up/downvoting") %>% pull(satisfaction)
+Tcombined = dados %>% filter( scenario == "combined") %>% pull(satisfaction)
+
+t_test1 = t.test(TupDown, Tcombined, alternative = "greater", conf.level = conf)
+t_test1
+
+```
+
+```{r}
+
+Tlikedis = dados %>% filter( scenario == "like/dislike") %>% pull(satisfaction)
+
+t_test2 = t.test(TupDown, Tlikedis, alternative = "greater", conf.level = conf)
+t_test2
+
+```
+
+
+Como ambos os casos apresentaram p-valor (0.01 e 5.79*10^6) menor que o nível de significância, podemos rejeitar a hipótese nula, reforçando a tese de que o método up/downsvoting apresentou uma média de satisfação significantemente maior que os outros métodos.
+
