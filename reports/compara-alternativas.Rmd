@@ -12,6 +12,10 @@ theme_set(theme_bw())
 
 library(boot)
 library(broom)
+library(ggpubr)
+#install.packages("ggpubr")
+
+
 
 knitr::opts_chunk$set(tidy = FALSE,
                       fig.width = 6,
@@ -26,32 +30,165 @@ dados = read_csv(here::here("data/satisfacoes.csv"),
 glimpse(dados)
 ```
 
+Analisando a distribuição da variável satisfação para cada método, temos:
+
+```{r}
+
+dados = dados %>% arrange(scenario,satisfaction)
+
+
+ggplot() + 
+    geom_violin(data = dados, mapping = aes(x=scenario,y=satisfaction),alpha = 1,colour = "gray")+
+    geom_jitter(data = dados,mapping = aes(colour= scenario, x=scenario,y=satisfaction),alpha = 0.5,size = 2,height = 0.05, width = 0.1, show.legend = FALSE)
+
+```
+
+A partid do gráfico podemos notar que os métodos up/downvoting, like/dislike e combined apresentam uma satisfação maior que o baseline. Para confirmar está observação vamos aplicar o teste de Mann-Whitney, com significância de 0.05, para comprovar que existe uma diferença significante.  
+
+
+1. Baseline x (Like/dislike, up/downvoting, combined)
 
 ```{r}
 comparacao1 = dados %>% 
     filter(scenario %in% c("baseline", "like/dislike"))
+comparacao2 = dados %>% 
+    filter(scenario %in% c("baseline", "up/downvoting"))
+comparacao3 = dados %>% 
+    filter(scenario %in% c("baseline", "combined"))
 
-theta <- function(d, i) {
-    agrupado = d %>% 
-        slice(i) %>% 
-        group_by(scenario) %>% 
-        summarise(media = mean(satisfaction))
-    b = agrupado %>% filter(scenario == "baseline") %>% pull(media)
-    l = agrupado %>% filter(scenario == "like/dislike") %>% pull(media)
-    l - b
+
+
+dif <- function(d) {
+    
+    wilcox.test(satisfaction ~ scenario,
+            data=d)
+
 }
 
-theta(comparacao1, i = 1:NROW(comparacao1))
+dif(comparacao1)
+dif(comparacao2)
+dif(comparacao3)
 ```
 
+Como as 3 comparações apresentaram p-valor < 0.05 podemos rejeitar a hipótese nula, confirmando que os valores de satisfação das amostras like/dislike, up/downvoting/combined são diferentes do baseline.
+
+
+Além disso, com base na visualização da distribuição dos 5 cenários, podemos perceber que o método up/downvoting, além de um alto nível de satisfação, ainda apresentou uma dispersão menor que os outros métodos. Aplicando a técnica de bootstrapping na média dos métodos up/downvoting, combined e like/dislike separadamente, temos: 
+
+2. Up/downvoting
+
 ```{r}
-ci1 = boot(data = comparacao1,
+set.seed(12345)
+
+theta = function(d,i) {
+  mean(d %>% slice(i) %>% pull(satisfaction)) 
+}
+
+updown = dados %>% 
+    filter(scenario == "up/downvoting")
+
+ciupdown = boot(data = updown,
            statistic = theta,
            R = 2000) %>%
     tidy(conf.level = .95,
          conf.method = "bca",
          conf.int = TRUE)
 
-ci1
+ciupdown = ciupdown %>% mutate(metodo = "up/downvoting")
+
 ```
+
+3. Like/dislike
+
+```{r}
+set.seed(12345)
+
+likedis = dados %>% 
+    filter(scenario == "like/dislike")
+
+cilikedis = boot(data = likedis,
+           statistic = theta,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+cilikedis = cilikedis %>% mutate(metodo = "like/dislike")
+```
+
+4. Combined
+
+```{r}
+set.seed(12345)
+combined = dados %>% 
+    filter(scenario == "combined")
+
+cicombined = boot(data = combined,
+           statistic = theta,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+cicombined = cicombined %>% mutate(metodo = "combined")
+```
+
+
+```{r}
+dfCompara = rbind(ciupdown, cicombined, cilikedis)
+dfCompara
+
+df3best = dados %>% filter(scenario %in% c("up/downvoting", "like/dislike","combined"))
+
+#dfCompara %>% ggplot(aes(
+#        x = metodo,
+#        y = statistic,
+#        ymin = conf.low,
+#        ymax = conf.high
+ #   )) +
+ #   geom_pointrange(size = 1.2) +
+ #   geom_point(size = 3) + 
+ #   labs(x = "Nível de Satisfação x Método de Gerenciamento", 
+ #        y = "")
+
+ggplot() + 
+    geom_violin(data = df3best, mapping = aes(x=scenario,y=satisfaction),colour = "gray")+
+    geom_jitter(data = df3best,mapping = aes(colour= scenario, x=scenario,y=satisfaction),alpha = 0.8,size = 2,height = 0.05, width = 0.1, show.legend = FALSE)+
+    geom_errorbar(data = dfCompara, mapping = aes( x = metodo,y = statistic,ymin = conf.low,ymax = conf.high),width = 0.2)+ 
+    geom_point(data = dfCompara,size = 1.5,aes( x = metodo,y = statistic) ) 
+   
+```
+
+Sendo assim, com base nas visualizações geradas, podemos perceber uma vantagem na satisfação do método Up/downvoting em relação aos outros métodos, considerando um intervalo de confiança de 95%.
+
+## Teste-t para diferença entre médias
+
+Usando o teste-t para saber se a média de satisfação do método up/downvoting é maior que os métodos combined e like/dislike, podemos formular as seguintes hipóteses:
+
+H0: MediaUpDown - MediaMetodo = 0
+H1: MediaUpDown - MediaMetodo > 0
+
+Onde MediaMetodo corresponder a média do método combined ou like/dislike. Com base num nível de significancia de 0.05, temos:
+
+```{r}
+conf = 0.05
+TupDown = dados %>% filter( scenario == "up/downvoting") %>% pull(satisfaction)
+Tcombined = dados %>% filter( scenario == "combined") %>% pull(satisfaction)
+
+t_test1 = t.test(TupDown, Tcombined, alternative = "greater", conf.level = conf)
+t_test1
+
+```
+
+```{r}
+
+Tlikedis = dados %>% filter( scenario == "like/dislike") %>% pull(satisfaction)
+
+t_test2 = t.test(TupDown, Tlikedis, alternative = "greater", conf.level = conf)
+t_test2
+
+```
+
+
+Como ambos os casos apresentaram p-valor (0.01 e 5.79*10^6) menor que o nível de significância, podemos rejeitar a hipótese nula, reforçando a tese de que o método up/downsvoting apresentou uma média de satisfação significantemente maior que os outros métodos.
 
